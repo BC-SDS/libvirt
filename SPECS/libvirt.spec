@@ -382,7 +382,7 @@
 Summary: Library providing a simple virtualization API
 Name: libvirt
 Version: 1.2.17
-Release: 13%{?dist}.5.1%{?extra_release}
+Release: 13%{?dist}.5.2%{?extra_release}
 License: LGPLv2+
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
@@ -663,6 +663,7 @@ Patch267: libvirt-qemu-driver-Separate-bulk-stats-worker-for-block-devices.patch
 Patch268: libvirt-qemu-bulk-stats-Don-t-access-possibly-blocked-storage.patch
 
 Patch10000: libvirt-qemu-agent-Fix-QEMU-guest-agent-is-not-available-due-to-an-error.patch
+Patch10001: libvirt-qemu-Add-support-for-rbd-path-in-block-rebase-process.patch
 
 %if %{with_libvirtd}
 Requires: libvirt-daemon = %{version}-%{release}
