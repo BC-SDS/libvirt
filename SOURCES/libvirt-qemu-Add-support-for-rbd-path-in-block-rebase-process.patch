@@ -1,0 +1,126 @@
+From 1a3e9b6e8b750025aa2c51ae5dd1cd2f98278340 Mon Sep 17 00:00:00 2001
+Message-Id: <1a3e9b6e8b750025aa2c51ae5dd1cd2f98278340@dist-git>
+From: Wei Liu <wei.liu@umcloud.com>
+Date: Mon, 13 Feb 2017 15:40:40 +0200
+Subject: [PATCH] add support for rbd path in block rebase process 
+
+diff -Npru libvirt-1.2.17.orig/src/qemu/qemu_domain.c libvirt-1.2.17/src/qemu/qemu_domain.c
+--- libvirt-1.2.17.orig/src/qemu/qemu_domain.c	2017-02-13 15:22:57.773758498 +0800
++++ libvirt-1.2.17/src/qemu/qemu_domain.c	2017-02-13 14:58:46.484156733 +0800
+@@ -2963,6 +2963,13 @@ qemuDomainDetermineDiskChain(virQEMUDriv
+                                   report_broken) < 0)
+         ret = -1;
+ 
++    // Liu Wei(wei.liu@umcloud.com): jump the check for rbd path
++    char protocol[4];
++    strncpy(protocol, disk->src->path, 3);
++    protocol[3] = '\0';
++    if (ret == -1 && strcmp(protocol, "rbd") == 0)
++        ret = 0;
++
+  cleanup:
+     virObjectUnref(cfg);
+     return ret;
+diff -Npru libvirt-1.2.17.orig/src/qemu/qemu_driver.c libvirt-1.2.17/src/qemu/qemu_driver.c
+--- libvirt-1.2.17.orig/src/qemu/qemu_driver.c	2017-02-13 15:22:57.774758508 +0800
++++ libvirt-1.2.17/src/qemu/qemu_driver.c	2017-02-13 15:13:47.916233400 +0800
+@@ -13540,6 +13540,11 @@ qemuDomainPrepareDiskChainElement(virQEM
+ 
+     elem->readonly = mode == VIR_DISK_CHAIN_READ_ONLY;
+ 
++    // liuwei
++    char prefix[4];
++    strncpy(prefix, elem->path, 3);
++    prefix[3] = '\0';
++
+     if (mode == VIR_DISK_CHAIN_NO_ACCESS) {
+         if (virSecurityManagerRestoreImageLabel(driver->securityManager,
+                                                 vm->def, elem) < 0)
+@@ -13558,7 +13563,7 @@ qemuDomainPrepareDiskChainElement(virQEM
+         if (qemuSetImageCgroup(vm, elem, false) < 0)
+             goto cleanup;
+ 
+-        if (virSecurityManagerSetImageLabel(driver->securityManager,
++        if (strcmp(prefix, "rbd")!=0 && virSecurityManagerSetImageLabel(driver->securityManager,
+                                             vm->def, elem) < 0)
+             goto cleanup;
+     }
+@@ -16799,7 +16804,13 @@ qemuDomainBlockCopyCommon(virDomainObjPt
+                        _("non-file destination not supported yet"));
+         goto endjob;
+     }
+-    if (stat(mirror->path, &st) < 0) {
++
++    // Liu Wei(wei.liu@umcloud.com): jump the check for rbd path.
++    char protocol[4];
++    strncpy(protocol, mirror->path, 3);
++    protocol[3] = '\0';
++    
++    if (stat(mirror->path, &st) < 0 && strcmp(protocol, "rbd")!=0) {
+         if (errno != ENOENT) {
+             virReportSystemError(errno, _("unable to stat for disk %s: %s"),
+                                  disk->dst, mirror->path);
+@@ -16836,8 +16847,12 @@ qemuDomainBlockCopyCommon(virDomainObjPt
+              * can also pass the RAW flag or use XML to tell us the format.
+              * So if we get here, we assume it is safe for us to probe the
+              * format from the file that we will be using.  */
+-            mirror->format = virStorageFileProbeFormat(mirror->path, cfg->user,
+-                                                       cfg->group);
++            if ( strcmp(protocol, "rbd")==0){
++                mirror->format = VIR_STORAGE_FILE_RAW;
++            } else{
++                mirror->format = virStorageFileProbeFormat(mirror->path, cfg->user,
++                                                           cfg->group);
++            }
+         }
+     }
+ 
+@@ -16859,7 +16874,7 @@ qemuDomainBlockCopyCommon(virDomainObjPt
+         goto endjob;
+ 
+     if (qemuDomainPrepareDiskChainElement(driver, vm, mirror,
+-                                          VIR_DISK_CHAIN_READ_WRITE) < 0) {
++                                          VIR_DISK_CHAIN_READ_WRITE) < 0 && strcmp(protocol, "rbd")!=0) {
+         qemuDomainPrepareDiskChainElement(driver, vm, mirror,
+                                           VIR_DISK_CHAIN_NO_ACCESS);
+         goto endjob;
+diff -Npru libvirt-1.2.17.orig/src/security/security_apparmor.c libvirt-1.2.17/src/security/security_apparmor.c
+--- libvirt-1.2.17.orig/src/security/security_apparmor.c	2017-02-13 15:22:57.764758407 +0800
++++ libvirt-1.2.17/src/security/security_apparmor.c	2017-02-13 15:17:02.664191183 +0800
+@@ -723,6 +723,11 @@ AppArmorSetSecurityImageLabel(virSecurit
+     char *profile_name = NULL;
+     virSecurityLabelDefPtr secdef;
+ 
++    // Liu Wei(wei.liu@umcloud.com): jump the check for rbd path.
++    char prefix[4];
++    strncpy(prefix, src->path, 3);
++    prefix[3] = '\0';
++
+     if (!src->path || !virStorageSourceIsLocalStorage(src))
+         return 0;
+ 
+@@ -734,7 +739,7 @@ AppArmorSetSecurityImageLabel(virSecurit
+ 
+     if (secdef->imagelabel) {
+         /* if the device doesn't exist, error out */
+-        if (!virFileExists(src->path)) {
++        if (!virFileExists(src->path) && strcmp(prefix, "rbd")!=0) {
+             virReportError(VIR_ERR_INTERNAL_ERROR,
+                            _("\'%s\' does not exist"),
+                            src->path);
+diff -Npru libvirt-1.2.17.orig/src/util/vircgroup.c libvirt-1.2.17/src/util/vircgroup.c
+--- libvirt-1.2.17.orig/src/util/vircgroup.c	2017-02-13 15:22:57.798758749 +0800
++++ libvirt-1.2.17/src/util/vircgroup.c	2017-02-13 15:19:51.874891420 +0800
+@@ -3033,7 +3033,11 @@ virCgroupAllowDevicePath(virCgroupPtr gr
+ {
+     struct stat sb;
+ 
+-    if (stat(path, &sb) < 0) {
++    // Liu Wei(wei.lliu@umcloud.com): jump the check for rbd path.
++    char prefix[4];
++    strncpy(prefix, path, 3);
++    prefix[3] = '\0';
++    if (stat(path, &sb) < 0 && strcmp(prefix, "rbd")!=0) {
+         virReportSystemError(errno,
+                              _("Path '%s' is not accessible"),
+                              path);
