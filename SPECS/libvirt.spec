@@ -664,7 +664,8 @@ Patch268: libvirt-qemu-bulk-stats-Don-t-access-possibly-blocked-storage.patch
 
 Patch10000: libvirt-qemu-agent-Fix-QEMU-guest-agent-is-not-available-due-to-an-error.patch
 Patch10001: libvirt-qemu-add-rbd-mirror-dest-in-qemuDomainBlockRebase.patch
-Patch10002: libvirt-support-dvs.patch
+Patch10002: libvirt-qemu-add-sheepdog-mirror-dest-in-qemuDomainBlockRebase.patch
+Patch10003: libvirt-support-dvs.patch
 
 %if %{with_libvirtd}
 Requires: libvirt-daemon = %{version}-%{release}
@@ -2618,7 +2619,10 @@ exit 0
 * Mon Apr 14 2017 Xing Yu <yu.xing@zte.com.cn> - 1.2.17-13.el7_2.5.4
 - libvirt: Add support to ZTE DVS.
 
-* Mon Mar 27 2017 Shengjing Zhu <zhsj@umcloud.com> - 1.2.17-13.el7_2.5.3
+* Mon Apr 12 2017 Zhengyong Wang <wangzhengyong@cmss.chinamobile.com> - 1.2.17-13.el7_2.5.3
+- qemu: Add add sheepdog mirror dest in qemuDomainBlockRebase
+
+* Mon Mar 27 2017 Shengjing Zhu <zhsj@umcloud.com> - 1.2.17-13.el7_2.5.2
 - qemu: Add add rbd mirror dest in qemuDomainBlockRebase
 
 * Mon Aug 29 2016 Yaowei Bai <baiyaowei@cmss.chinamobile.com> - 1.2.17-13.el7_2.5.1
